@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -30,6 +31,7 @@ func New() (*httputil.ReverseProxy, error) {
 		originalPath := req.URL.Path
 		originalRawPath := req.URL.RawPath
 		originalQuery := req.URL.RawQuery
+		apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 
 		baseDirector(req)
 
@@ -38,6 +40,10 @@ func New() (*httputil.ReverseProxy, error) {
 		req.URL.RawQuery = originalQuery
 		req.Host = upstreamHost
 		req.Header.Set("Host", upstreamHost)
+		req.Header.Del("Authorization")
+		if apiKey != "" {
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+		}
 	}
 
 	rp.ModifyResponse = func(resp *http.Response) error {
@@ -67,6 +73,10 @@ func New() (*httputil.ReverseProxy, error) {
 }
 
 func Handler() (http.Handler, error) {
+	if strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) == "" {
+		return nil, errors.New("OPENAI_API_KEY is not set")
+	}
+
 	rp, err := New()
 	if err != nil {
 		return nil, err
