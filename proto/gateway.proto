@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package gateway;
+
+option go_package = "github.com/abhinavtyagiO/ai-gateway-proxy/proto";
+
+service Optimizer {
+  rpc OptimizePrompt(OptimizationRequest) returns (OptimizationResponse) {}
+}
+
+message OptimizationRequest {
+  string prompt = 1;
+  string model_requested = 2;
+  string user_id = 3;
+  string org_id = 4;
+}
+
+message OptimizationResponse {
+  string optimized_prompt = 1;
+  string target_model = 2; // e.g., "gpt-4o-mini" or "gpt-oss-120b"
+  bool should_use_oss = 3;
+}
