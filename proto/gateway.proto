@@ -19,4 +19,5 @@ message OptimizationResponse {
   string optimized_prompt = 1;
   string target_model = 2; // e.g., "gpt-4o-mini" or "gpt-oss-120b"
   bool should_use_oss = 3;
+  string cached_response = 4;
 }

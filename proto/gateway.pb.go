@@ -94,6 +94,7 @@ type OptimizationResponse struct {
 	OptimizedPrompt string                 `protobuf:"bytes,1,opt,name=optimized_prompt,json=optimizedPrompt,proto3" json:"optimized_prompt,omitempty"`
 	TargetModel     string                 `protobuf:"bytes,2,opt,name=target_model,json=targetModel,proto3" json:"target_model,omitempty"` // e.g., "gpt-4o-mini" or "gpt-oss-120b"
 	ShouldUseOss    bool                   `protobuf:"varint,3,opt,name=should_use_oss,json=shouldUseOss,proto3" json:"should_use_oss,omitempty"`
+	CachedResponse  string                 `protobuf:"bytes,4,opt,name=cached_response,json=cachedResponse,proto3" json:"cached_response,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -149,6 +150,13 @@ func (x *OptimizationResponse) GetShouldUseOss() bool {
 	return false
 }
 
+func (x *OptimizationResponse) GetCachedResponse() string {
+	if x != nil {
+		return x.CachedResponse
+	}
+	return ""
+}
+
 var File_proto_gateway_proto protoreflect.FileDescriptor
 
 const file_proto_gateway_proto_rawDesc = "" +
@@ -158,11 +166,12 @@ const file_proto_gateway_proto_rawDesc = "" +
 	"\x06prompt\x18\x01 \x01(\tR\x06prompt\x12'\n" +
 	"\x0fmodel_requested\x18\x02 \x01(\tR\x0emodelRequested\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x15\n" +
-	"\x06org_id\x18\x04 \x01(\tR\x05orgId\"\x8a\x01\n" +
+	"\x06org_id\x18\x04 \x01(\tR\x05orgId\"\xb3\x01\n" +
 	"\x14OptimizationResponse\x12)\n" +
 	"\x10optimized_prompt\x18\x01 \x01(\tR\x0foptimizedPrompt\x12!\n" +
 	"\ftarget_model\x18\x02 \x01(\tR\vtargetModel\x12$\n" +
-	"\x0eshould_use_oss\x18\x03 \x01(\bR\fshouldUseOss2\\\n" +
+	"\x0eshould_use_oss\x18\x03 \x01(\bR\fshouldUseOss\x12'\n" +
+	"\x0fcached_response\x18\x04 \x01(\tR\x0ecachedResponse2\\\n" +
 	"\tOptimizer\x12O\n" +
 	"\x0eOptimizePrompt\x12\x1c.gateway.OptimizationRequest\x1a\x1d.gateway.OptimizationResponse\"\x00B1Z/github.com/abhinavtyagiO/ai-gateway-proxy/protob\x06proto3"
 

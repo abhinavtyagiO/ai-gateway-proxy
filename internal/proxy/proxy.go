@@ -12,12 +12,19 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/abhinavtyagiO/ai-gateway-proxy/internal/auth"
+	"github.com/abhinavtyagiO/ai-gateway-proxy/internal/cache"
 	"github.com/abhinavtyagiO/ai-gateway-proxy/internal/optimizer"
+	"github.com/redis/go-redis/v9"
 )
 
-const upstreamHost = "api.openai.com"
+const (
+	upstreamHost = "api.openai.com"
+	cacheTTL     = 5 * time.Minute
+	cacheChunkSz = 256
+)
 
 type jsonError struct {
 	Error string `json:"error"`
@@ -28,6 +35,7 @@ type chatCompletionRequest struct {
 	Prompt   string          `json:"prompt,omitempty"`
 	Messages []chatMessage   `json:"messages,omitempty"`
 	Input    json.RawMessage `json:"input,omitempty"`
+	Stream   bool            `json:"stream,omitempty"`
 }
 
 type chatMessage struct {
@@ -35,7 +43,19 @@ type chatMessage struct {
 	Content string `json:"content"`
 }
 
-func New(optimizerClient *optimizer.OptimizerClient) (*httputil.ReverseProxy, error) {
+type preparedRequest struct {
+	cacheKey       string
+	stream         bool
+	cachedResponse string
+}
+
+type responseRecorder struct {
+	http.ResponseWriter
+	body       bytes.Buffer
+	statusCode int
+}
+
+func New() (*httputil.ReverseProxy, error) {
 	target, err := url.Parse("https://" + upstreamHost)
 	if err != nil {
 		return nil, err
@@ -50,9 +70,6 @@ func New(optimizerClient *optimizer.OptimizerClient) (*httputil.ReverseProxy, er
 		originalRawPath := req.URL.RawPath
 		originalQuery := req.URL.RawQuery
 		apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-		if err := optimizeRequest(req, optimizerClient, logger); err != nil {
-			logger.Printf("optimizer failed open: method=%s path=%s err=%v", req.Method, req.URL.Path, err)
-		}
 
 		baseDirector(req)
 
@@ -93,74 +110,178 @@ func New(optimizerClient *optimizer.OptimizerClient) (*httputil.ReverseProxy, er
 	return rp, nil
 }
 
-func Handler(optimizerClient *optimizer.OptimizerClient) (http.Handler, error) {
+func Handler(optimizerClient *optimizer.OptimizerClient, cacheClient *cache.Cache) (http.Handler, error) {
 	if strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) == "" {
 		return nil, errors.New("OPENAI_API_KEY is not set")
 	}
 
-	rp, err := New(optimizerClient)
+	rp, err := New()
 	if err != nil {
 		return nil, err
 	}
 
-	return rp, nil
+	logger := log.New(os.Stderr, "proxy: ", log.LstdFlags|log.Lshortfile)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		prepared, err := prepareRequest(r, optimizerClient, cacheClient, logger)
+		if err != nil {
+			logger.Printf("request preparation failed open: method=%s path=%s err=%v", r.Method, r.URL.Path, err)
+		}
+
+		if prepared.cachedResponse != "" {
+			streamCacheHit(w, prepared.cachedResponse)
+			return
+		}
+
+		if prepared.cacheKey == "" || prepared.stream {
+			rp.ServeHTTP(w, r)
+			return
+		}
+
+		recorder := &responseRecorder{ResponseWriter: w}
+		rp.ServeHTTP(recorder, r)
+
+		if cacheClient != nil && recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices && recorder.body.Len() > 0 {
+			if err := cacheClient.Set(r.Context(), prepared.cacheKey, recorder.body.String(), cacheTTL); err != nil {
+				logger.Printf("failed to store L1 cache: method=%s path=%s key=%s err=%v", r.Method, r.URL.Path, prepared.cacheKey, err)
+			}
+		}
+	}), nil
 }
 
-func optimizeRequest(req *http.Request, optimizerClient *optimizer.OptimizerClient, logger *log.Logger) error {
-	if optimizerClient == nil || req.Body == nil {
-		return nil
-	}
-
-	orgID, _ := auth.OrgIDFromContext(req.Context())
-	userID, _ := auth.UserIDFromContext(req.Context())
-	if orgID == "" || userID == "" {
-		return errors.New("missing org_id or user_id in request context")
+func prepareRequest(req *http.Request, optimizerClient *optimizer.OptimizerClient, cacheClient *cache.Cache, logger *log.Logger) (preparedRequest, error) {
+	if req.Body == nil {
+		return preparedRequest{}, nil
 	}
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		return err
+		return preparedRequest{}, err
 	}
 	defer req.Body.Close()
 
-	req.Body = io.NopCloser(bytes.NewReader(body))
+	restoreRequestBody(req, body)
 	if len(body) == 0 {
-		return nil
+		return preparedRequest{}, nil
 	}
 
 	var payload chatCompletionRequest
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return err
+		return preparedRequest{}, err
 	}
 
+	orgID, _ := auth.OrgIDFromContext(req.Context())
+	userID, _ := auth.UserIDFromContext(req.Context())
 	prompt := extractPrompt(payload)
-	if prompt == "" || payload.Model == "" {
-		return nil
+	if orgID == "" || payload.Model == "" || prompt == "" {
+		return preparedRequest{stream: payload.Stream}, nil
+	}
+
+	cacheKey := cache.GenerateKey(prompt, payload.Model, orgID)
+	if cacheClient != nil {
+		cachedValue, err := cacheClient.Get(req.Context(), cacheKey)
+		if err == nil && cachedValue != "" {
+			logger.Printf("L1 cache hit: method=%s path=%s org_id=%s key=%s", req.Method, req.URL.Path, orgID, cacheKey)
+			return preparedRequest{cacheKey: cacheKey, stream: payload.Stream, cachedResponse: cachedValue}, nil
+		}
+		if errors.Is(err, redis.Nil) {
+			logger.Printf("L1 cache miss: method=%s path=%s org_id=%s key=%s", req.Method, req.URL.Path, orgID, cacheKey)
+		}
+		if err != nil && !errors.Is(err, redis.Nil) {
+			logger.Printf("L1 cache lookup failed: method=%s path=%s key=%s err=%v", req.Method, req.URL.Path, cacheKey, err)
+		}
+	}
+
+	if optimizerClient == nil || userID == "" {
+		return preparedRequest{cacheKey: cacheKey, stream: payload.Stream}, nil
 	}
 
 	response, err := optimizerClient.Optimize(req.Context(), prompt, payload.Model, userID, orgID)
 	if err != nil {
-		return err
+		return preparedRequest{cacheKey: cacheKey, stream: payload.Stream}, err
+	}
+
+	if response.GetCachedResponse() != "" {
+		if cacheClient != nil {
+			if err := cacheClient.Set(req.Context(), cacheKey, response.GetCachedResponse(), cacheTTL); err != nil {
+				logger.Printf("failed to backfill L1 cache from optimizer: method=%s path=%s key=%s err=%v", req.Method, req.URL.Path, cacheKey, err)
+			}
+		}
+		logger.Printf("L2 cache hit: method=%s path=%s org_id=%s key=%s", req.Method, req.URL.Path, orgID, cacheKey)
+		return preparedRequest{cacheKey: cacheKey, stream: payload.Stream, cachedResponse: response.GetCachedResponse()}, nil
 	}
 
 	updated, changed := applyOptimization(payload, response.GetOptimizedPrompt(), response.GetTargetModel())
 	if !changed {
-		return nil
+		return preparedRequest{cacheKey: cacheKey, stream: payload.Stream}, nil
 	}
 
-	scrubbedBytes, err := json.Marshal(updated)
+	updatedBody, err := json.Marshal(updated)
 	if err != nil {
-		return err
+		return preparedRequest{cacheKey: cacheKey, stream: payload.Stream}, err
 	}
 
-	req.Body = io.NopCloser(bytes.NewReader(scrubbedBytes))
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(scrubbedBytes)), nil
-	}
-	req.ContentLength = int64(len(scrubbedBytes))
-	req.Header.Set("Content-Length", strconv.Itoa(len(scrubbedBytes)))
+	restoreRequestBody(req, updatedBody)
 	logger.Printf("optimizer applied: method=%s path=%s org_id=%s user_id=%s target_model=%s", req.Method, req.URL.Path, orgID, userID, updated.Model)
-	return nil
+	return preparedRequest{cacheKey: cacheKey, stream: updated.Stream}, nil
+}
+
+func restoreRequestBody(req *http.Request, body []byte) {
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+	req.ContentLength = int64(len(body))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
+}
+
+func streamCacheHit(w http.ResponseWriter, cachedJSON string) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		_, _ = io.WriteString(w, cachedJSON)
+		return
+	}
+
+	for start := 0; start < len(cachedJSON); start += cacheChunkSz {
+		end := start + cacheChunkSz
+		if end > len(cachedJSON) {
+			end = len(cachedJSON)
+		}
+
+		chunk := strings.ReplaceAll(cachedJSON[start:end], "\n", "\ndata: ")
+		_, _ = io.WriteString(w, "data: "+chunk+"\n\n")
+		flusher.Flush()
+	}
+
+	_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
+func (rr *responseRecorder) Header() http.Header {
+	return rr.ResponseWriter.Header()
+}
+
+func (rr *responseRecorder) WriteHeader(statusCode int) {
+	rr.statusCode = statusCode
+	rr.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (rr *responseRecorder) Write(data []byte) (int, error) {
+	if rr.statusCode == 0 {
+		rr.statusCode = http.StatusOK
+	}
+	rr.body.Write(data)
+	return rr.ResponseWriter.Write(data)
+}
+
+func (rr *responseRecorder) Flush() {
+	if flusher, ok := rr.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 func extractPrompt(payload chatCompletionRequest) string {
