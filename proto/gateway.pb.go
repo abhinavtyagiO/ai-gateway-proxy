@@ -157,6 +157,102 @@ func (x *OptimizationResponse) GetCachedResponse() string {
 	return ""
 }
 
+type CacheUpdateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Prompt        string                 `protobuf:"bytes,1,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	ResponseJson  string                 `protobuf:"bytes,2,opt,name=response_json,json=responseJson,proto3" json:"response_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CacheUpdateRequest) Reset() {
+	*x = CacheUpdateRequest{}
+	mi := &file_proto_gateway_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CacheUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CacheUpdateRequest) ProtoMessage() {}
+
+func (x *CacheUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_gateway_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CacheUpdateRequest.ProtoReflect.Descriptor instead.
+func (*CacheUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_proto_gateway_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CacheUpdateRequest) GetPrompt() string {
+	if x != nil {
+		return x.Prompt
+	}
+	return ""
+}
+
+func (x *CacheUpdateRequest) GetResponseJson() string {
+	if x != nil {
+		return x.ResponseJson
+	}
+	return ""
+}
+
+type CacheUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CacheUpdateResponse) Reset() {
+	*x = CacheUpdateResponse{}
+	mi := &file_proto_gateway_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CacheUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CacheUpdateResponse) ProtoMessage() {}
+
+func (x *CacheUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_gateway_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CacheUpdateResponse.ProtoReflect.Descriptor instead.
+func (*CacheUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_proto_gateway_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CacheUpdateResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 var File_proto_gateway_proto protoreflect.FileDescriptor
 
 const file_proto_gateway_proto_rawDesc = "" +
@@ -171,9 +267,15 @@ const file_proto_gateway_proto_rawDesc = "" +
 	"\x10optimized_prompt\x18\x01 \x01(\tR\x0foptimizedPrompt\x12!\n" +
 	"\ftarget_model\x18\x02 \x01(\tR\vtargetModel\x12$\n" +
 	"\x0eshould_use_oss\x18\x03 \x01(\bR\fshouldUseOss\x12'\n" +
-	"\x0fcached_response\x18\x04 \x01(\tR\x0ecachedResponse2\\\n" +
+	"\x0fcached_response\x18\x04 \x01(\tR\x0ecachedResponse\"Q\n" +
+	"\x12CacheUpdateRequest\x12\x16\n" +
+	"\x06prompt\x18\x01 \x01(\tR\x06prompt\x12#\n" +
+	"\rresponse_json\x18\x02 \x01(\tR\fresponseJson\"/\n" +
+	"\x13CacheUpdateResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\xa8\x01\n" +
 	"\tOptimizer\x12O\n" +
-	"\x0eOptimizePrompt\x12\x1c.gateway.OptimizationRequest\x1a\x1d.gateway.OptimizationResponse\"\x00B1Z/github.com/abhinavtyagiO/ai-gateway-proxy/protob\x06proto3"
+	"\x0eOptimizePrompt\x12\x1c.gateway.OptimizationRequest\x1a\x1d.gateway.OptimizationResponse\"\x00\x12J\n" +
+	"\vUpdateCache\x12\x1b.gateway.CacheUpdateRequest\x1a\x1c.gateway.CacheUpdateResponse\"\x00B1Z/github.com/abhinavtyagiO/ai-gateway-proxy/protob\x06proto3"
 
 var (
 	file_proto_gateway_proto_rawDescOnce sync.Once
@@ -187,16 +289,20 @@ func file_proto_gateway_proto_rawDescGZIP() []byte {
 	return file_proto_gateway_proto_rawDescData
 }
 
-var file_proto_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_proto_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_proto_gateway_proto_goTypes = []any{
 	(*OptimizationRequest)(nil),  // 0: gateway.OptimizationRequest
 	(*OptimizationResponse)(nil), // 1: gateway.OptimizationResponse
+	(*CacheUpdateRequest)(nil),   // 2: gateway.CacheUpdateRequest
+	(*CacheUpdateResponse)(nil),  // 3: gateway.CacheUpdateResponse
 }
 var file_proto_gateway_proto_depIdxs = []int32{
 	0, // 0: gateway.Optimizer.OptimizePrompt:input_type -> gateway.OptimizationRequest
-	1, // 1: gateway.Optimizer.OptimizePrompt:output_type -> gateway.OptimizationResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: gateway.Optimizer.UpdateCache:input_type -> gateway.CacheUpdateRequest
+	1, // 2: gateway.Optimizer.OptimizePrompt:output_type -> gateway.OptimizationResponse
+	3, // 3: gateway.Optimizer.UpdateCache:output_type -> gateway.CacheUpdateResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -213,7 +319,7 @@ func file_proto_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_gateway_proto_rawDesc), len(file_proto_gateway_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Optimizer_OptimizePrompt_FullMethodName = "/gateway.Optimizer/OptimizePrompt"
+	Optimizer_UpdateCache_FullMethodName    = "/gateway.Optimizer/UpdateCache"
 )
 
 // OptimizerClient is the client API for Optimizer service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type OptimizerClient interface {
 	OptimizePrompt(ctx context.Context, in *OptimizationRequest, opts ...grpc.CallOption) (*OptimizationResponse, error)
+	UpdateCache(ctx context.Context, in *CacheUpdateRequest, opts ...grpc.CallOption) (*CacheUpdateResponse, error)
 }
 
 type optimizerClient struct {
@@ -47,11 +49,22 @@ func (c *optimizerClient) OptimizePrompt(ctx context.Context, in *OptimizationRe
 	return out, nil
 }
 
+func (c *optimizerClient) UpdateCache(ctx context.Context, in *CacheUpdateRequest, opts ...grpc.CallOption) (*CacheUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CacheUpdateResponse)
+	err := c.cc.Invoke(ctx, Optimizer_UpdateCache_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OptimizerServer is the server API for Optimizer service.
 // All implementations must embed UnimplementedOptimizerServer
 // for forward compatibility.
 type OptimizerServer interface {
 	OptimizePrompt(context.Context, *OptimizationRequest) (*OptimizationResponse, error)
+	UpdateCache(context.Context, *CacheUpdateRequest) (*CacheUpdateResponse, error)
 	mustEmbedUnimplementedOptimizerServer()
 }
 
@@ -64,6 +77,9 @@ type UnimplementedOptimizerServer struct{}
 
 func (UnimplementedOptimizerServer) OptimizePrompt(context.Context, *OptimizationRequest) (*OptimizationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OptimizePrompt not implemented")
+}
+func (UnimplementedOptimizerServer) UpdateCache(context.Context, *CacheUpdateRequest) (*CacheUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateCache not implemented")
 }
 func (UnimplementedOptimizerServer) mustEmbedUnimplementedOptimizerServer() {}
 func (UnimplementedOptimizerServer) testEmbeddedByValue()                   {}
@@ -104,6 +120,24 @@ func _Optimizer_OptimizePrompt_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Optimizer_UpdateCache_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CacheUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OptimizerServer).UpdateCache(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Optimizer_UpdateCache_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OptimizerServer).UpdateCache(ctx, req.(*CacheUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Optimizer_ServiceDesc is the grpc.ServiceDesc for Optimizer service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +148,10 @@ var Optimizer_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OptimizePrompt",
 			Handler:    _Optimizer_OptimizePrompt_Handler,
+		},
+		{
+			MethodName: "UpdateCache",
+			Handler:    _Optimizer_UpdateCache_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

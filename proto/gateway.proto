@@ -6,6 +6,7 @@ option go_package = "github.com/abhinavtyagiO/ai-gateway-proxy/proto";
 
 service Optimizer {
   rpc OptimizePrompt(OptimizationRequest) returns (OptimizationResponse) {}
+  rpc UpdateCache(CacheUpdateRequest) returns (CacheUpdateResponse) {}
 }
 
 message OptimizationRequest {
@@ -20,4 +21,13 @@ message OptimizationResponse {
   string target_model = 2; // e.g., "gpt-4o-mini" or "gpt-oss-120b"
   bool should_use_oss = 3;
   string cached_response = 4;
+}
+
+message CacheUpdateRequest {
+  string prompt = 1;
+  string response_json = 2;
+}
+
+message CacheUpdateResponse {
+  bool success = 1;
 }

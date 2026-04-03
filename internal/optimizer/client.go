@@ -11,7 +11,7 @@ import (
 
 const (
 	defaultOptimizerAddr = "localhost:50051"
-	optimizeTimeout      = 200 * time.Millisecond
+	optimizeTimeout      = 500 * time.Millisecond
 )
 
 type OptimizerClient struct {
@@ -44,6 +44,13 @@ func (c *OptimizerClient) Optimize(ctx context.Context, prompt, model, userID, o
 		ModelRequested: model,
 		UserId:         userID,
 		OrgId:          orgID,
+	})
+}
+
+func (c *OptimizerClient) UpdateCache(ctx context.Context, prompt, responseJSON string) (*gateway.CacheUpdateResponse, error) {
+	return c.client.UpdateCache(ctx, &gateway.CacheUpdateRequest{
+		Prompt:       prompt,
+		ResponseJson: responseJSON,
 	})
 }
 
